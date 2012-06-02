@@ -34,6 +34,8 @@ CpuTemperature.prototype = {
         this.actor.add_actor(this.statusLabel);
 
         this.sensorsPath = this._detectSensors();
+        this.HDDTempPath = this._detectHDDTemp();
+
         this.command=["xdg-open", "http://github.com/xtranophilist/gnome-shell-extension-cpu-temperature/issues/"];
         if(this.sensorsPath){
             this.title='Error';
@@ -61,11 +63,22 @@ CpuTemperature.prototype = {
         return null;
     },
 
+    _detectHDDTemp: function(){
+        //detect if hddtemp script is installed
+        let ret = GLib.spawn_command_line_sync("which hdd-temp.sh");
+        if ( (ret[0]) && (ret[3] == 0) ) {//if yes
+            return ret[1].toString().split("\n", 1)[0];//find the path of the sensors
+        }
+        return null;		
+	},
+	
     _update_temp: function() {
         let items = new Array();
         let tempInfo=null;
         if (this.sensorsPath){
             let sensors_output = GLib.spawn_command_line_sync(this.sensorsPath);//get the output of the sensors command
+            let hddtemp_output = GLib.spawn_command_line_sync(this.HDDTempPath);
+            let hddtemp = hddtemp_output[1].toString().split("\n", 1)[0];
             if(sensors_output[0]) tempInfo = this._findTemperatureFromSensorsOutput(sensors_output[1].toString());//get temperature from sensors
             if (tempInfo){
                 //destroy all items in popup
@@ -73,6 +86,13 @@ CpuTemperature.prototype = {
                     c.destroy()
                 });
                 var s=0, n=0;//sum and count
+                
+                if(hddtemp.toString() != 'SLP') { //can't read temps when HDD sleeps
+                    items.push('Hard Disk : '+this._formatTemp(hddtemp.toString()));
+                    s+=parseInt(hddtemp.toString());
+                    n++;
+                }
+                
                 for (let adapter in tempInfo){
                     if(adapter!=0){
                         //ISA Adapters
